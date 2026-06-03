@@ -1,0 +1,32 @@
+# Runtime outputs and large genomics data
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+*.bam
+*.bai
+*.sam
+*.cram
+*.crai
+*.vcf
+*.vcf.gz
+*.vcf.gz.tbi
+*.vcf.gz.csi
+*.tfrecord*
+*.html
+*.log
+
+# Local run directories
+qc/
+logs/
+tmp/
+variants_output/
+regions/
+panels/
+
+# Python/cache/editor noise
+__pycache__/
+*.pyc
+.DS_Store
+.vscode/
+
