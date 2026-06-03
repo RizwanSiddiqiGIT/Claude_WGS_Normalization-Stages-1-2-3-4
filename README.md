@@ -35,6 +35,7 @@ The downstream stages 5-7 annotation/panel repo should consume only the filtered
 
 ```bash
 cd /home/rayzw/WGS_Normalization-Stages-1-2-3-4
+cat LOCAL_OPERATIONAL_CONTEXT.md
 ./preflight_software.sh
 ./preflight_data.sh
 ./stage1_qc_preprocess.sh
@@ -44,4 +45,3 @@ cd /home/rayzw/WGS_Normalization-Stages-1-2-3-4
 ```
 
 Run stages one at a time until data paths have been fully validated.
-
