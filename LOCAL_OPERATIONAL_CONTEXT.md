@@ -131,6 +131,15 @@ docker.exe pull google/deepvariant:1.6.0
 - Stage 1 page: `/home/rayzw/DNA/hg38/progress/stage1_progress.html`.
 - The same pattern can be duplicated for Stage 2, Stage 3, and Stage 4 by changing log paths, watched output folders, expected files, and process patterns.
 
+### Stage 2 reference convention
+
+- Important: The older pipeline context requires numeric/no-`chr` chromosome names.
+- The E: drive FASTA `/mnt/e/Health/Rizwan/Files/fasta/HG38/hg38_v0_Homo_sapiens_assembly38.fasta` was found, but its headers start with `chr1`, so it should not be used blindly for this numeric pipeline.
+- Stage 2 production should use the Ensembl-style GRCh38 primary assembly reference at `/home/rayzw/DNA/ref_genome/Homo_sapiens.GRCh38.dna.primary_assembly.fa`, with numeric contig names.
+- Added `launch_stage2_smoke_test.sh` to validate `bwa-mem2`, `samtools`, and Picard with a tiny numeric-reference FASTA before the full reference is restored.
+- Latest result: `launch_stage2_smoke_test.sh` passed end-to-end after adjusting for Picard's index naming. Picard writes `sample.bai` for `sample.bam`, not always `sample.bam.bai`.
+- Added `prepare_stage2_reference.sh` to download Ensembl release 115 GRCh38 primary assembly, verify numeric/no-`chr` contigs, create `.fai`, and create the `bwa-mem2` index.
+
 ## Current Software Status
 
 As of the latest software preflight after reinstall:
