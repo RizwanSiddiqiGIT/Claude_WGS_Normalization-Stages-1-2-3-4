@@ -48,3 +48,19 @@ cat LOCAL_OPERATIONAL_CONTEXT.md
 Run stages one at a time until data paths have been fully validated.
 
 Use `launch_stage1_smoke_test.sh` first after a reinstall. It creates tiny synthetic paired FASTQs and validates FastQC, fastp, and MultiQC without requiring the real raw WGS data.
+
+## Progress Tracker
+
+Launch a static HTML tracker for the current Stage 1 run:
+
+```bash
+./launch_stage_progress_tracker.sh stage1
+```
+
+The generated page refreshes itself every 60 seconds:
+
+```text
+/home/rayzw/DNA/hg38/progress/stage1_progress.html
+```
+
+This tracker does not require a web server or port. It rewrites the HTML file in place and the browser auto-refreshes.

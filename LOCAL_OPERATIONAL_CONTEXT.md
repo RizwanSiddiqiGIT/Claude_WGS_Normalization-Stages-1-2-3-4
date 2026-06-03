@@ -123,6 +123,14 @@ docker.exe pull google/deepvariant:1.6.0
 - Latest result: Passed end-to-end with 100 synthetic read pairs retained after fastp.
 - Bug found and fixed: Initial synthetic FASTQ generator had sequence/quality length mismatch, which fastp correctly rejected. The generator now derives quality string length from sequence length.
 
+### Static progress tracking
+
+- Need: View stage progress in a browser without running a local server/port.
+- Fix applied: Added `progress_tracker.py` and `launch_stage_progress_tracker.sh`.
+- Behavior: Rewrites an HTML file every 60 seconds; the page includes a meta-refresh tag.
+- Stage 1 page: `/home/rayzw/DNA/hg38/progress/stage1_progress.html`.
+- The same pattern can be duplicated for Stage 2, Stage 3, and Stage 4 by changing log paths, watched output folders, expected files, and process patterns.
+
 ## Current Software Status
 
 As of the latest software preflight after reinstall:
