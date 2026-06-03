@@ -38,6 +38,7 @@ cd /home/rayzw/WGS_Normalization-Stages-1-2-3-4
 cat LOCAL_OPERATIONAL_CONTEXT.md
 ./preflight_software.sh
 ./preflight_data.sh
+./launch_stage1_smoke_test.sh
 ./stage1_qc_preprocess.sh
 ./stage2_align_markdup.sh
 ./stage3_deepvariant_calling.sh
@@ -45,3 +46,5 @@ cat LOCAL_OPERATIONAL_CONTEXT.md
 ```
 
 Run stages one at a time until data paths have been fully validated.
+
+Use `launch_stage1_smoke_test.sh` first after a reinstall. It creates tiny synthetic paired FASTQs and validates FastQC, fastp, and MultiQC without requiring the real raw WGS data.

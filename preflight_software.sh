@@ -57,10 +57,15 @@ else
   fail "Picard jar missing: ${PICARD_JAR}"
 fi
 
-if "${DOCKER_BIN}" image inspect "${DEEPVARIANT_IMAGE}" >/dev/null 2>&1; then
-  pass "Docker image present: ${DEEPVARIANT_IMAGE}"
+if "${DOCKER_BIN}" version >/dev/null 2>&1; then
+  pass "Docker daemon reachable via ${DOCKER_BIN}"
+  if "${DOCKER_BIN}" image inspect "${DEEPVARIANT_IMAGE}" >/dev/null 2>&1; then
+    pass "Docker image present: ${DEEPVARIANT_IMAGE}"
+  else
+    warn "Docker image not present locally: ${DEEPVARIANT_IMAGE}"
+  fi
 else
-  warn "Docker image not present locally: ${DEEPVARIANT_IMAGE}"
+  warn "Docker daemon not reachable via ${DOCKER_BIN}; start Docker Desktop before Stage 3"
 fi
 
 if bash -n ./*.sh >/dev/null 2>&1; then
@@ -74,4 +79,3 @@ echo " SUMMARY: pass=${PASS} warn=${WARN} fail=${FAIL}"
 echo "======================================================================"
 
 [ "${FAIL}" -eq 0 ]
-

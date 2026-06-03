@@ -86,6 +86,7 @@ docker.exe image inspect google/deepvariant:1.6.0
 
 - Symptom: `docker.exe version` reports the client but cannot connect to `npipe:////./pipe/docker_engine`.
 - Fix applied: Start Docker Desktop from Windows, then retry from WSL.
+- Follow-up: The preflight now reports this as "Docker daemon not reachable" rather than incorrectly implying the DeepVariant image is missing.
 
 ### Missing stages 1-4 software after reinstall
 
@@ -113,6 +114,15 @@ curl -fL https://github.com/broadinstitute/picard/releases/download/3.4.0/picard
 docker.exe pull google/deepvariant:1.6.0
 ```
 
+### Stage 1 needs a tiny end-to-end test before real FASTQs
+
+- Symptom: After reinstall, production FASTQ paths may be missing even when Stage 1 software is installed.
+- Fix applied: Added `launch_stage1_smoke_test.sh`.
+- Behavior: Creates tiny synthetic paired FASTQs under `/home/rayzw/DNA/hg38/tmp/stage1_smoke_test`, then runs FastQC, fastp, FastQC again on trimmed reads, and MultiQC.
+- Purpose: Verifies all Stage 1 software without touching real WGS input data.
+- Latest result: Passed end-to-end with 100 synthetic read pairs retained after fastp.
+- Bug found and fixed: Initial synthetic FASTQ generator had sequence/quality length mismatch, which fastp correctly rejected. The generator now derives quality string length from sequence length.
+
 ## Current Software Status
 
 As of the latest software preflight after reinstall:
@@ -132,7 +142,13 @@ As of the latest software preflight after reinstall:
 
 ## Notes To Add Later
 
-- Exact FASTQ source paths once restored.
 - Exact reference FASTA source path once copied into `/home/rayzw/DNA/ref_genome`.
 - Whether Docker Desktop WSL integration gets enabled, which would allow switching `DOCKER_BIN` back to `docker`.
 
+## Data Location Notes
+
+- Real FASTQ files are stored on Windows `D:\DNA`, visible inside WSL as `/mnt/d/DNA`.
+- Current paired FASTQs:
+  - `/mnt/d/DNA/MuhammadSiddiqi-SQE38K22-30x-WGS-Sequencing_com-12-04-25.1.fq.gz`
+  - `/mnt/d/DNA/MuhammadSiddiqi-SQE38K22-30x-WGS-Sequencing_com-12-04-25.2.fq.gz`
+- For production, prefer copying or staging active working files into native WSL storage under `/home/rayzw/DNA` before heavy repeated processing, unless space constraints require reading from `/mnt/d/DNA`.
