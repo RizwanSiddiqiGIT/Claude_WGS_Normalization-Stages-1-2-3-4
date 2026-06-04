@@ -123,6 +123,17 @@ docker.exe pull google/deepvariant:1.6.0
 - Latest result: Passed end-to-end with 100 synthetic read pairs retained after fastp.
 - Bug found and fixed: Initial synthetic FASTQ generator had sequence/quality length mismatch, which fastp correctly rejected. The generator now derives quality string length from sequence length.
 
+### Stage 1 final FASTQ corruption after direct writes
+
+- Symptom: Stage 2 failed with `gzread ... incorrect data check`; repeated `gzip -t` checks showed final trimmed FASTQs were not trustworthy.
+- Raw FASTQ gzip checks passed, so the issue was in the generated Stage 1 outputs, not the source FASTQs.
+- Fix applied: Recreated `stage1_qc_preprocess.sh` so final FASTQs are never written directly. The script now writes paired fastp outputs into a run-specific temp directory, runs full `gzip -t` checks on both temp FASTQs, backs up old finals, then promotes verified files into the final paths.
+- Stage 1 now records run-specific fastp reports and symlinks `fastp.html` / `fastp.json` to the latest report.
+- Use `check_stage1_trimmed_integrity.sh` for sequential integrity checks before Stage 2.
+- `config.env` now supports environment overrides for input/output paths so smoke tests can execute the production Stage 1 script on synthetic FASTQs without touching real data.
+- The Google Doc context for MGI DNBSEQ-T7 recommends `PL:ILLUMINA` in read-group metadata for downstream GATK compatibility. `config.env` now defaults Stage 2 `READ_GROUP` to `PL:ILLUMINA` while keeping DNB library naming in `LB`.
+- If the user explicitly chooses to proceed despite raw `.fq.gz` CRC-check failures, use `ASSUME_RAW_FASTQ_VALID=1` or `run_stage1_real_assume_fastq_valid.sh`. This skips only the raw-input gzip gate; Stage 1 must still validate generated trimmed FASTQs before promotion.
+
 ### Static progress tracking
 
 - Need: View stage progress in a browser without running a local server/port.
@@ -139,6 +150,8 @@ docker.exe pull google/deepvariant:1.6.0
 - Added `launch_stage2_smoke_test.sh` to validate `bwa-mem2`, `samtools`, and Picard with a tiny numeric-reference FASTA before the full reference is restored.
 - Latest result: `launch_stage2_smoke_test.sh` passed end-to-end after adjusting for Picard's index naming. Picard writes `sample.bai` for `sample.bam`, not always `sample.bam.bai`.
 - Added `prepare_stage2_reference.sh` to download Ensembl release 115 GRCh38 primary assembly, verify numeric/no-`chr` contigs, create `.fai`, and create the `bwa-mem2` index.
+- Stage 2 mini-trial probing found `bwa-mem2` repeatedly stalls on real read pairs around 3751-4000, while classic `bwa mem` aligns the same block successfully. Production Stage 2 now uses classic `bwa mem`; keep `bwa-mem2` installed for reference/smoke testing but do not use it for this production sample unless the issue is resolved.
+- Stage 2 Picard MarkDuplicates uses `READ_NAME_REGEX=null` because the MGI-style read names do not match Picard's optical duplicate parser. This avoids noisy parser warnings; duplicate marking still runs, but optical duplicate detection is not inferred from tile/x/y coordinates.
 
 ## Current Software Status
 
@@ -148,6 +161,7 @@ As of the latest software preflight after reinstall:
 - `multiqc`: installed
 - `fastp`: installed
 - `bwa-mem2`: installed
+- `bwa`: installed
 - `parallel`: installed
 - `samtools`: installed
 - `bcftools`: installed
@@ -169,3 +183,12 @@ As of the latest software preflight after reinstall:
   - `/mnt/d/DNA/MuhammadSiddiqi-SQE38K22-30x-WGS-Sequencing_com-12-04-25.1.fq.gz`
   - `/mnt/d/DNA/MuhammadSiddiqi-SQE38K22-30x-WGS-Sequencing_com-12-04-25.2.fq.gz`
 - For production, prefer copying or staging active working files into native WSL storage under `/home/rayzw/DNA` before heavy repeated processing, unless space constraints require reading from `/mnt/d/DNA`.
+
+## Reference Strategy Notes
+
+- For rebuilding BAMs from fresh FASTQs, prefer the NCBI GRCh38 full-plus-decoy analysis reference:
+  `/home/rayzw/DNA/ref_genome/GRCh38_full_plus_hs38d1/GCA_000001405.15_GRCh38_full_plus_hs38d1_analysis_set.fna`.
+- Source download location used locally:
+  `/mnt/d/DNA/fai/GCA_000001405.15_GRCh38_full_plus_hs38d1_analysis_set.fna.gz`.
+- This reference has `chr`-prefixed names, includes `chrM`, `chrEBV`, ALT/random/unplaced contigs, and hs38d1 decoys. It was the closest match to the sequencing.com BAM dictionary after `chr` normalization.
+- Keep downstream contig-name translation as a VCF-stage concern if needed; do not custom-rename the alignment reference unless a specific downstream tool requires it.

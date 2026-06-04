@@ -13,7 +13,7 @@ if [ ! -s "${REF_FA}.fai" ]; then
   "${SAMTOOLS_BIN}" faidx "${REF_FA}"
 fi
 
-"${BWA_MEM2_BIN}" mem \
+"${BWA_BIN}" mem \
   -t "${THREADS}" \
   -R "${READ_GROUP}" \
   "${REF_FA}" \
@@ -26,9 +26,9 @@ fi
   O="${PROCESSED_BAM}" \
   M="${DUP_METRICS}" \
   CREATE_INDEX=true \
+  READ_NAME_REGEX=null \
   VALIDATION_STRINGENCY=LENIENT
 
 "${SAMTOOLS_BIN}" flagstat "${PROCESSED_BAM}" > "${LOGS_DIR}/Rizwan_processed.flagstat.txt"
 
 echo "[STAGE 2 COMPLETE] ${PROCESSED_BAM}"
-

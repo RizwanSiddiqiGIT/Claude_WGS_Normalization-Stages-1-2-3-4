@@ -4,7 +4,7 @@ Run system installs from a root WSL shell when automation cannot answer `sudo` p
 
 ```powershell
 wsl -d Ubuntu -u root --exec bash -c 'apt-get update'
-wsl -d Ubuntu -u root --exec bash -c 'DEBIAN_FRONTEND=noninteractive apt-get install -y fastqc multiqc fastp bwa-mem2 samtools bcftools tabix parallel default-jre'
+wsl -d Ubuntu -u root --exec bash -c 'DEBIAN_FRONTEND=noninteractive apt-get install -y fastqc multiqc fastp bwa bwa-mem2 samtools bcftools tabix parallel default-jre'
 ```
 
 Picard is expected at:
@@ -47,7 +47,7 @@ Keep active pipeline paths under native WSL storage:
 Known reinstall fixes completed:
 
 - Installed `fastqc`, `multiqc`, `fastp`, `bwa-mem2`, and `parallel` from Ubuntu apt.
+- Installed classic `bwa` from Ubuntu apt after `bwa-mem2` repeatedly stalled on a tiny real-read block during Stage 2 mini-trial probing.
 - Downloaded Broad Picard `3.4.0` jar to `/home/rayzw/tools/picard/picard.jar`.
 - Started Docker Desktop and pulled `google/deepvariant:1.6.0`.
 - Updated `config.env` so `DOCKER_BIN=docker.exe`.
-

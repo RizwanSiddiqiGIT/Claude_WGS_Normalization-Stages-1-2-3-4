@@ -7,6 +7,7 @@ import argparse
 import datetime as dt
 import html
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -73,6 +74,29 @@ def tail_file(path: Path, lines: int) -> str:
     return output.rstrip()
 
 
+def process_elapsed(processes: list[str]) -> str:
+    if not processes:
+        return "Not running"
+    for line in processes:
+        parts = line.split(None, 7)
+        if len(parts) >= 3 and "progress_tracker.py" not in line:
+            return parts[2]
+    return "Running"
+
+
+def processed_reads(log_path: Path) -> int:
+    if not log_path.exists() or log_path.stat().st_size == 0:
+        return 0
+    total = 0
+    pattern = re.compile(r"Processed (\d+) reads")
+    with log_path.open("r", encoding="utf-8", errors="ignore") as handle:
+        for line in handle:
+            match = pattern.search(line)
+            if match:
+                total += int(match.group(1))
+    return total
+
+
 def infer_status(processes: list[str], log_text: str, expected_files: list[Path]) -> str:
     missing_expected = [path for path in expected_files if not path.exists() or path.stat().st_size == 0]
     lower_log = log_text.lower()
@@ -94,6 +118,16 @@ def render_html(args: argparse.Namespace) -> str:
     log_text = tail_file(log_path, args.tail_lines)
     status = infer_status(processes, log_text, expected_files)
     files = file_rows(watch_paths + expected_files)
+    processed = processed_reads(log_path)
+    progress_pct = (processed / args.expected_reads * 100) if args.expected_reads and processed else 0
+    metrics_html = ""
+    if args.expected_reads:
+        metrics_html = f"""
+  <div class="top">
+    <div class="box"><div class="label">Runtime</div><div class="value">{html.escape(process_elapsed(processes))}</div></div>
+    <div class="box"><div class="label">Processed Reads</div><div class="value">{processed:,}</div></div>
+    <div class="box"><div class="label">Approx Alignment Progress</div><div class="value">{progress_pct:.2f}%</div></div>
+  </div>"""
 
     status_class = {
         "RUNNING": "running",
@@ -234,6 +268,7 @@ def render_html(args: argparse.Namespace) -> str:
     <div class="box"><div class="label">Refresh</div><div class="value">Every {args.interval}s</div></div>
     <div class="box"><div class="label">Log</div><div class="value">{html.escape(str(log_path))}</div></div>
   </div>
+{metrics_html}
 
   <h2>Matching Processes</h2>
   <pre>{process_block}</pre>
@@ -269,6 +304,7 @@ def main() -> int:
     parser.add_argument("--pattern", action="append", default=[])
     parser.add_argument("--interval", type=int, default=60)
     parser.add_argument("--tail-lines", type=int, default=80)
+    parser.add_argument("--expected-reads", type=int, default=0)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
 
@@ -282,4 +318,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

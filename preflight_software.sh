@@ -43,6 +43,7 @@ echo "======================================================================"
 check_command "${FASTQC_BIN}" required
 check_command "${MULTIQC_BIN}" required
 check_command "${FASTP_BIN}" required
+check_command "${BWA_BIN}" required
 check_command "${BWA_MEM2_BIN}" required
 check_command "${PARALLEL_BIN}" required
 check_command "${DOCKER_BIN}" required

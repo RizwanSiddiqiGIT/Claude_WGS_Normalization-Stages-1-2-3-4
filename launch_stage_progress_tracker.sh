@@ -36,10 +36,36 @@ case "${STAGE}" in
     echo "HTML=${output}"
     echo "LOG=${PROGRESS_DIR}/stage1_progress_tracker.log"
     ;;
+  stage2)
+    latest_log="$(find "${LOGS_DIR}" -maxdepth 1 -type f -name 'stage2_real_*.log' -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -n 1 | cut -d' ' -f2-)"
+    if [ -z "${latest_log}" ]; then
+      latest_log="${LOGS_DIR}/stage2_real_missing.log"
+      printf 'No stage2_real_*.log file found yet.\n' > "${latest_log}"
+    fi
+    output="${PROGRESS_DIR}/stage2_progress.html"
+    nohup python3 ./progress_tracker.py \
+      --stage "Stage 2 Alignment And Duplicate Marking" \
+      --log "${latest_log}" \
+      --output "${output}" \
+      --watch "${BASE_DIR}" \
+      --expect "${PROCESSED_BAM}" \
+      --expect "${PROCESSED_BAM%.bam}.bai" \
+      --expect "${DUP_METRICS}" \
+      --expect "${LOGS_DIR}/Rizwan_processed.flagstat.txt" \
+      --pattern "stage2_align_markdup" \
+      --pattern "bwa mem" \
+      --pattern "bwa-mem2" \
+      --pattern "samtools sort" \
+      --pattern "MarkDuplicates" \
+      --interval "${INTERVAL}" \
+      > "${PROGRESS_DIR}/stage2_progress_tracker.log" 2>&1 &
+    echo "PID=$!"
+    echo "HTML=${output}"
+    echo "LOG=${PROGRESS_DIR}/stage2_progress_tracker.log"
+    ;;
   *)
     echo "Unknown stage: ${STAGE}"
-    echo "Currently supported: stage1"
+    echo "Currently supported: stage1, stage2"
     exit 1
     ;;
 esac
-
