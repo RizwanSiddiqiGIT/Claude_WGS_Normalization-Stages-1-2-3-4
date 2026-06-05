@@ -51,6 +51,23 @@ Run stages one at a time until data paths have been fully validated.
 
 Use `launch_stage1_smoke_test.sh` first after a reinstall. It creates tiny synthetic paired FASTQs and validates FastQC, fastp, and MultiQC without requiring the real raw WGS data.
 
+For MGI DNBSEQ-T7 paired FASTQs, use the named Stage 1 fork:
+
+```bash
+./launch_stage1_mgi_qin33_smoke_test.sh
+./run_stage1_mgi_qin33_dna_linux_uncompressed_foreground.sh
+```
+
+This keeps the original Stage 1 intact and writes outputs to:
+
+```text
+/home/rayzw/DNA-Linux/hg38/fastq_mgi_qin33
+/home/rayzw/DNA-Linux/hg38/qc_mgi_qin33
+/home/rayzw/DNA-Linux/hg38/progress/stage1_mgi_qin33_progress.html
+```
+
+The MGI fork uses explicit MGI adapter sequences, poly-G trimming, qin33/Phred+33 validation, and a streaming paired FASTQ validator before promoting trimmed reads.
+
 Use `launch_stage2_smoke_test.sh` to validate alignment and duplicate-marking software without requiring the real trimmed WGS FASTQs or full reference. It creates a tiny numeric-reference FASTA and synthetic paired reads, then runs `bwa-mem2`, `samtools`, and Picard MarkDuplicates.
 
 Before production Stage 2, prepare the numeric Ensembl GRCh38 primary assembly reference:
