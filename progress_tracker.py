@@ -158,6 +158,115 @@ def fastqc_progress(log_path: Path) -> dict[str, object]:
     return result
 
 
+def extract_stage1_step_sections(log_path: Path) -> dict[int, list[str]]:
+    sections: dict[int, list[str]] = {step: [] for step in range(1, 8)}
+    if not log_path.exists() or log_path.stat().st_size == 0:
+        return sections
+
+    marker = re.compile(r"^\[(\d)/7\]")
+    current_step: int | None = None
+    with log_path.open("r", encoding="utf-8", errors="ignore") as handle:
+        for raw_line in handle:
+            line = raw_line.rstrip()
+            match = marker.match(line)
+            if match:
+                current_step = int(match.group(1))
+            if current_step in sections:
+                sections[current_step].append(line)
+    return sections
+
+
+def latest_stage1_step(log_path: Path) -> int:
+    latest = 1
+    if not log_path.exists() or log_path.stat().st_size == 0:
+        return latest
+    marker = re.compile(r"^\[(\d)/7\]")
+    with log_path.open("r", encoding="utf-8", errors="ignore") as handle:
+        for raw_line in handle:
+            match = marker.match(raw_line)
+            if match:
+                latest = int(match.group(1))
+    return latest
+
+
+def step_status(step: int, current_step: int, section_text: str, log_text: str) -> str:
+    lower_section = section_text.lower()
+    lower_log = log_text.lower()
+    if step == current_step and (
+        "error" in lower_section
+        or "exception" in lower_section
+        or "invalid compressed data" in lower_section
+        or "crc error" in lower_section
+    ):
+        return "Attention"
+    if step < current_step:
+        return "Complete"
+    if step == current_step:
+        if "stage 1 complete" in lower_log:
+            return "Complete"
+        return "Current"
+    return "Pending"
+
+
+def status_badge_class(status: str) -> str:
+    return {
+        "Complete": "complete",
+        "Current": "running",
+        "Attention": "attention",
+        "Pending": "idle",
+    }.get(status, "idle")
+
+
+def stage1_tabs_html(log_path: Path, log_text: str) -> str:
+    step_names = {
+        1: "Verify Raw Input",
+        2: "Raw FastQC",
+        3: "fastp Filtering",
+        4: "Verify Trimmed Output",
+        5: "Backup Existing Finals",
+        6: "Promote Outputs",
+        7: "Final FastQC + MultiQC",
+    }
+    sections = extract_stage1_step_sections(log_path)
+    current_step = latest_stage1_step(log_path)
+    tabs = []
+    panels = []
+
+    for step in range(1, 8):
+        section_lines = sections.get(step, [])
+        section_text = "\n".join(section_lines[-80:]) if section_lines else "This step has not started yet."
+        if step == 4:
+            validation_log = log_path.parent / "stage1_trimmed_reformat_validation_latest.log"
+            if validation_log.exists():
+                section_text += "\n\n--- BBTools reformat.sh validation follow-up ---\n"
+                section_text += tail_file(validation_log, 80)
+        status_value = step_status(step, current_step, section_text, log_text)
+        active = " active" if step == current_step else ""
+        selected = "true" if step == current_step else "false"
+        tabs.append(
+            f'<button class="tab-button{active}" type="button" data-step="step-{step}" '
+            f'aria-selected="{selected}">Step {step}</button>'
+        )
+        panels.append(
+            f"""
+  <section id="step-{step}" class="tab-panel{active}">
+    <div class="top">
+      <div class="box"><div class="label">Step</div><div class="value">Step {step}</div></div>
+      <div class="box"><div class="label">Name</div><div class="value">{html.escape(step_names[step])}</div></div>
+      <div class="box"><div class="label">Status</div><div class="value"><span class="status {status_badge_class(status_value)}">{html.escape(status_value)}</span></div></div>
+    </div>
+    <pre>{html.escape(section_text)}</pre>
+  </section>"""
+        )
+
+    return f"""
+  <h2>Stage 1 Steps</h2>
+  <div class="tabs" role="tablist">
+    {"".join(tabs)}
+  </div>
+  {"".join(panels)}"""
+
+
 def processed_reads(log_path: Path) -> int:
     if not log_path.exists() or log_path.stat().st_size == 0:
         return 0
@@ -215,6 +324,7 @@ def render_html(args: argparse.Namespace) -> str:
     <div class="box"><div class="label">Total Runtime</div><div class="value">{html.escape(human_duration(elapsed_seconds))}</div></div>
     <div class="box"><div class="label">Estimated Time Remaining</div><div class="value">{html.escape(human_duration(eta_seconds))}</div></div>
   </div>"""
+    stage1_tabs = stage1_tabs_html(log_path, log_text)
     metrics_html = ""
     if args.expected_reads:
         metrics_html = f"""
@@ -322,6 +432,34 @@ def render_html(args: argparse.Namespace) -> str:
     .status.running {{ background: var(--running); }}
     .status.complete {{ background: var(--complete); }}
     .status.attention {{ background: var(--attention); }}
+    .tabs {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 18px 0 12px;
+    }}
+    .tab-button {{
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--fg);
+      border-radius: 8px;
+      padding: 9px 12px;
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+    }}
+    .tab-button.active {{
+      border-color: var(--running);
+      background: var(--running);
+      color: white;
+    }}
+    .tab-panel {{
+      display: none;
+    }}
+    .tab-panel.active {{
+      display: block;
+    }}
     pre {{
       white-space: pre-wrap;
       overflow-wrap: anywhere;
@@ -366,6 +504,7 @@ def render_html(args: argparse.Namespace) -> str:
 {metrics_html}
 {fastq_progress_html}
 {timing_html}
+{stage1_tabs}
 
   <h2>Matching Processes</h2>
   <pre>{process_block}</pre>
@@ -379,6 +518,19 @@ def render_html(args: argparse.Namespace) -> str:
   <h2>Recent Log</h2>
   <pre>{log_block}</pre>
 </main>
+<script>
+  const buttons = Array.from(document.querySelectorAll(".tab-button"));
+  const panels = Array.from(document.querySelectorAll(".tab-panel"));
+  function showStep(id) {{
+    buttons.forEach((button) => {{
+      const active = button.dataset.step === id;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    }});
+    panels.forEach((panel) => panel.classList.toggle("active", panel.id === id));
+  }}
+  buttons.forEach((button) => button.addEventListener("click", () => showStep(button.dataset.step)));
+</script>
 </body>
 </html>
 """
