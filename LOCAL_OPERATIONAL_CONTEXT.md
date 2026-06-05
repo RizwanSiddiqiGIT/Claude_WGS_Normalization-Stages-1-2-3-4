@@ -181,6 +181,7 @@ As of the latest software preflight after reinstall:
 ## Git Hygiene Rule
 
 - Whenever code, config, scripts, or context files are changed, update local git and the remote GitHub repo after verification. Prefer a focused commit message describing the pipeline decision/change, then push to `main` unless the user has asked for a branch. Do not leave important operational fixes only in the local worktree.
+- For any command or pipeline step expected to run longer than 5 minutes, include status-update support: either launch/update the relevant progress HTML tracker, write to a clear latest-log symlink, or provide periodic status checks with command/log paths. Long-running jobs should not be left silent.
 
 ## Notes To Add Later
 

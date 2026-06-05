@@ -33,6 +33,12 @@ PID_FILE="${LOGS_DIR_DNA_LINUX}/stage1_dna_linux.pid"
   echo "======================================================================"
   test -r "${RAW_R1}"
   test -r "${RAW_R2}"
+  if ! pgrep -f "progress_tracker.py.*stage1_dna_linux" >/dev/null 2>&1; then
+    ./run_stage1_dna_linux_progress_tracker_foreground.sh &
+    echo "Progress tracker PID: $!"
+  else
+    echo "Progress tracker already appears to be running."
+  fi
   BASE_DIR="${BASE_DIR_DNA_LINUX}" \
   LOGS_DIR="${LOGS_DIR_DNA_LINUX}" \
   QC_DIR="${QC_OUT_DIR}" \
