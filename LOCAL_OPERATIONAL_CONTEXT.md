@@ -133,6 +133,13 @@ docker.exe pull google/deepvariant:1.6.0
 - `config.env` now supports environment overrides for input/output paths so smoke tests can execute the production Stage 1 script on synthetic FASTQs without touching real data.
 - The Google Doc context for MGI DNBSEQ-T7 recommends `PL:ILLUMINA` in read-group metadata for downstream GATK compatibility. `config.env` now defaults Stage 2 `READ_GROUP` to `PL:ILLUMINA` while keeping DNB library naming in `LB`.
 - If the user explicitly chooses to proceed despite raw `.fq.gz` CRC-check failures, use `ASSUME_RAW_FASTQ_VALID=1` or `run_stage1_real_assume_fastq_valid.sh`. This skips only the raw-input gzip gate; Stage 1 must still validate generated trimmed FASTQs before promotion.
+- When using the uncompressed FASTQs extracted from the problematic gzip archives, launch Stage 1 with `run_stage1_real_uncompressed_fastq.sh`. The uncompressed files live inside same-named folders on `/mnt/d/DNA`, and sampled/full-line-count checks showed both are structurally valid.
+- Current safer path: use `prepare_stage1_uncompressed_fastq_local.sh` to stage uncompressed FASTQs into native WSL storage under `/home/rayzw/DNA/hg38/raw_uncompressed`, then run `run_stage1_real_uncompressed_fastq_local.sh`. This avoids heavy FastQC/fastp reads directly through `/mnt/d`.
+- As of 2026-06-04, `/mnt/d/DNA` had uncompressed R2 as a `.fq` folder/file, but uncompressed R1 was absent. The local prep script therefore creates local uncompressed R1 from `/mnt/d/DNA/...25.1.fq.gz` when the uncompressed R1 folder is missing, then copies uncompressed R2 as-is.
+- Avoid passing complex Linux expressions through PowerShell/WSL directly. Put logic into repo scripts and invoke them with `wsl -d Ubuntu --exec /path/to/script.sh`; otherwise PowerShell may consume pipes, redirects, quotes, parentheses, or heredocs before WSL sees them.
+- Stage 1 FASTQ path is currently de-prioritized. The WSL-local uncompressed R1 failed FastQC with `SequenceFormatException: Midline ... didn't start with '+' at 478330863`, meaning R1 is structurally malformed. Do not use that R1 directly for fastp/alignment. If FASTQ recovery is ever needed, only use a pair-aware repair workflow that streams R1/R2 together, validates each 4-line record, drops malformed pairs from both files, writes synchronized repaired FASTQs, and logs all dropped pairs.
+- Current active pivot: use the hg38 BAM copied into native WSL storage at `/home/rayzw/DNA-Linux/hg38/MuhammadSiddiqi-SQE38K22-30x-WGS-Sequencing_com-12-04-25.bam`. Initial `samtools quickcheck` passed. Header reports coordinate sort (`SO:coordinate`), numeric/no-`chr` GRCh38-style contigs, read group `SM:SQE38K22`, `PL:ILLUMINA`, alignment by `bwa-mem2`, sorting by `samtools`, and duplicate-marking provenance from `sambamba markdup`.
+- Follow-up BAM indexing failed despite `samtools quickcheck` passing: `samtools index` reported `BGZF decode jobs returned error 1 for block offset 26584396449`. Treat this BAM as suspect/corrupted until a clean index can be produced from a verified source copy. `quickcheck` alone is not sufficient for this file.
 
 ### Static progress tracking
 
@@ -170,6 +177,10 @@ As of the latest software preflight after reinstall:
 - `picard.jar`: `/home/rayzw/tools/picard/picard.jar`
 - `docker.exe`: works if Docker Desktop is running
 - `google/deepvariant:1.6.0`: pulled locally
+
+## Git Hygiene Rule
+
+- Whenever code, config, scripts, or context files are changed, update local git and the remote GitHub repo after verification. Prefer a focused commit message describing the pipeline decision/change, then push to `main` unless the user has asked for a branch. Do not leave important operational fixes only in the local worktree.
 
 ## Notes To Add Later
 
