@@ -33,6 +33,7 @@ trap cleanup EXIT
     in2="${R2}" \
     out1="${DISCARD_DIR}/R1.discard.fastq" \
     out2="${DISCARD_DIR}/R2.discard.fastq" \
+    qin=33 \
     verifypaired=t \
     overwrite=t
   echo "======================================================================"
