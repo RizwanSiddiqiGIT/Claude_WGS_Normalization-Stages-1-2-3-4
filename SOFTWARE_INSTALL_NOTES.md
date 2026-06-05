@@ -7,6 +7,23 @@ wsl -d Ubuntu -u root --exec bash -c 'apt-get update'
 wsl -d Ubuntu -u root --exec bash -c 'DEBIAN_FRONTEND=noninteractive apt-get install -y fastqc multiqc fastp bwa bwa-mem2 samtools bcftools tabix parallel default-jre'
 ```
 
+Install FASTQ/BGZF validation helpers:
+
+```powershell
+wsl -d Ubuntu -u root --exec apt-get update
+wsl -d Ubuntu -u root --exec apt-get install -y seqkit bbmap
+```
+
+This also installs `pigz` as a dependency in the current Ubuntu package set.
+
+Expected paths/versions:
+
+```text
+/usr/bin/seqkit      seqkit v2.10.1
+/usr/bin/reformat.sh BBTools version 39.20
+/usr/bin/pigz        pigz 2.8
+```
+
 Picard is expected at:
 
 ```text
@@ -48,6 +65,7 @@ Known reinstall fixes completed:
 
 - Installed `fastqc`, `multiqc`, `fastp`, `bwa-mem2`, and `parallel` from Ubuntu apt.
 - Installed classic `bwa` from Ubuntu apt after `bwa-mem2` repeatedly stalled on a tiny real-read block during Stage 2 mini-trial probing.
+- Installed `seqkit`, `bbmap`/BBTools `reformat.sh`, and `pigz` to provide alternate FASTQ/gzip validation and repair options after repeated gzip CRC failures on Stage 1 generated outputs.
 - Downloaded Broad Picard `3.4.0` jar to `/home/rayzw/tools/picard/picard.jar`.
 - Started Docker Desktop and pulled `google/deepvariant:1.6.0`.
 - Updated `config.env` so `DOCKER_BIN=docker.exe`.

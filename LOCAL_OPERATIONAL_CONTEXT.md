@@ -175,6 +175,9 @@ As of the latest software preflight after reinstall:
 - `tabix`: installed
 - `java`: installed
 - `picard.jar`: `/home/rayzw/tools/picard/picard.jar`
+- `seqkit`: `/usr/bin/seqkit`, version `2.10.1`
+- `reformat.sh`: `/usr/bin/reformat.sh`, BBTools version `39.20`
+- `pigz`: `/usr/bin/pigz`, version `2.8`
 - `docker.exe`: works if Docker Desktop is running
 - `google/deepvariant:1.6.0`: pulled locally
 
