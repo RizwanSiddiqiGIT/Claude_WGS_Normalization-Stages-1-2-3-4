@@ -84,6 +84,80 @@ def process_elapsed(processes: list[str]) -> str:
     return "Running"
 
 
+def human_duration(seconds: float | None) -> str:
+    if seconds is None:
+        return "Unknown"
+    total = max(0, int(seconds))
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes}m {secs}s"
+    if minutes:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
+
+
+def parse_log_started(log_path: Path) -> dt.datetime | None:
+    if not log_path.exists() or log_path.stat().st_size == 0:
+        return None
+    pattern = re.compile(r"^ Started: (.+)$")
+    with log_path.open("r", encoding="utf-8", errors="ignore") as handle:
+        for line in handle:
+            match = pattern.match(line.rstrip())
+            if not match:
+                continue
+            value = match.group(1)
+            for fmt in ("%a %b %d %H:%M:%S %Z %Y", "%a %b %e %H:%M:%S %Z %Y"):
+                try:
+                    return dt.datetime.strptime(value, fmt)
+                except ValueError:
+                    continue
+    return None
+
+
+def fastqc_progress(log_path: Path) -> dict[str, object]:
+    result: dict[str, object] = {
+        "r1": None,
+        "r2": None,
+        "phase": "Not started",
+        "average": None,
+    }
+    if not log_path.exists() or log_path.stat().st_size == 0:
+        return result
+
+    progress_pattern = re.compile(r"Approx (\d+)% complete for (.+)")
+    with log_path.open("r", encoding="utf-8", errors="ignore") as handle:
+        for raw_line in handle:
+            line = raw_line.rstrip()
+            if "[2/7] Running raw FastQC" in line:
+                result["phase"] = "Raw FastQC running"
+            elif "[3/7] Running fastp" in line:
+                result["phase"] = "Raw FastQC complete; fastp running"
+                result["r1"] = 100
+                result["r2"] = 100
+            elif "[7/7] Running final FastQC" in line:
+                result["phase"] = "Final FastQC and MultiQC running"
+            elif "STAGE 1 COMPLETE" in line:
+                result["phase"] = "Complete"
+                result["r1"] = 100
+                result["r2"] = 100
+
+            match = progress_pattern.search(line)
+            if not match:
+                continue
+            pct = int(match.group(1))
+            filename = match.group(2)
+            if ".1.fq" in filename or "R1" in filename:
+                result["r1"] = pct
+            elif ".2.fq" in filename or "R2" in filename:
+                result["r2"] = pct
+
+    values = [value for value in (result["r1"], result["r2"]) if isinstance(value, int)]
+    if values:
+        result["average"] = sum(values) / len(values)
+    return result
+
+
 def processed_reads(log_path: Path) -> int:
     if not log_path.exists() or log_path.stat().st_size == 0:
         return 0
@@ -111,6 +185,7 @@ def infer_status(processes: list[str], log_text: str, expected_files: list[Path]
 
 def render_html(args: argparse.Namespace) -> str:
     now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_dt = dt.datetime.now()
     log_path = Path(args.log)
     watch_paths = [Path(item) for item in args.watch]
     expected_files = [Path(item) for item in args.expect]
@@ -120,6 +195,26 @@ def render_html(args: argparse.Namespace) -> str:
     files = file_rows(watch_paths + expected_files)
     processed = processed_reads(log_path)
     progress_pct = (processed / args.expected_reads * 100) if args.expected_reads and processed else 0
+    started_at = parse_log_started(log_path)
+    elapsed_seconds = (now_dt - started_at).total_seconds() if started_at else None
+    fq_progress = fastqc_progress(log_path)
+    fq_average = fq_progress["average"]
+    eta_seconds = None
+    if elapsed_seconds and isinstance(fq_average, (int, float)) and 0 < fq_average < 100:
+        eta_seconds = elapsed_seconds * ((100 - fq_average) / fq_average)
+    fastq_progress_html = f"""
+  <h2>Current FASTQ Progress</h2>
+  <div class="top">
+    <div class="box"><div class="label">FASTQ 1</div><div class="value">{html.escape(str(fq_progress["r1"])) if fq_progress["r1"] is not None else "Pending"}%</div></div>
+    <div class="box"><div class="label">FASTQ 2</div><div class="value">{html.escape(str(fq_progress["r2"])) if fq_progress["r2"] is not None else "Pending"}%</div></div>
+    <div class="box"><div class="label">Current Phase</div><div class="value">{html.escape(str(fq_progress["phase"]))}</div></div>
+  </div>"""
+    timing_html = f"""
+  <h2>Run Timing</h2>
+  <div class="top">
+    <div class="box"><div class="label">Total Runtime</div><div class="value">{html.escape(human_duration(elapsed_seconds))}</div></div>
+    <div class="box"><div class="label">Estimated Time Remaining</div><div class="value">{html.escape(human_duration(eta_seconds))}</div></div>
+  </div>"""
     metrics_html = ""
     if args.expected_reads:
         metrics_html = f"""
@@ -269,6 +364,8 @@ def render_html(args: argparse.Namespace) -> str:
     <div class="box"><div class="label">Log</div><div class="value">{html.escape(str(log_path))}</div></div>
   </div>
 {metrics_html}
+{fastq_progress_html}
+{timing_html}
 
   <h2>Matching Processes</h2>
   <pre>{process_block}</pre>
