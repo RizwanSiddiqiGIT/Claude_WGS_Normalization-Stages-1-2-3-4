@@ -5,6 +5,28 @@ Format: Issue → Cause → Solution → Future Instruction
 
 ---
 
+## Index (12 issues)
+
+| ID | One-line summary | Category |
+|----|------------------|----------|
+| ISSUE-001 | Inline WSL bash via PowerShell corrupts paths/output | WSL exec |
+| ISSUE-002 | VirtioFS corrupts large (>20–30 GB) file transfers | Filesystem |
+| ISSUE-003 | BWA killed by SIGHUP from Claude heredoc — use `setsid` | Process mgmt |
+| ISSUE-004 | Incomplete SAM (4% of reads) accepted as complete | Validation |
+| ISSUE-005 | Step scripts referenced wrong config filename after rename | Scripting |
+| ISSUE-006 | FastQC `-t` is file-level parallelism, not per-file threads | Tool behavior |
+| ISSUE-007 | fastp uses `-w`, not `--threads` | Tool CLI |
+| ISSUE-008 | bash+jq progress updater failed silently — use Python | Monitoring |
+| ISSUE-009 | Windows sleep kills WSL — disable for >30 min jobs | Persistence |
+| ISSUE-010 | Redundant parallel `sha256sum` processes on same file | Bg tasks |
+| ISSUE-011 | PowerShell WSL path-translation fails on `G:\` (spaces) | WSL/Windows |
+| ISSUE-012 | DeepVariant `WGS_PCR`/`PCR_FREE` model_type deprecated | Variant calling |
+| ISSUE-013 | Local clone `Claude_WGS_...` pointed to wrong GitHub remote | GitHub |
+
+> **Kept as a single file by design** — many notes deep-link `[[ISSUE_LOG#ISSUE-NNN]]`; splitting would break those anchors. Split into `Issues/ISSUE-0XX-to-0YY.md` batches only past ~20 entries, updating cross-refs at the same time.
+
+---
+
 ## ISSUE-001: WSL Complex Commands Break via PowerShell Inline
 
 **Encountered:** 2026-06-07, Session 1
@@ -339,6 +361,76 @@ For DeepVariant specifically: Use Docker image instead of binary when path trans
 
 ### Future Instruction
 > **For any large binary installations from Windows with complex path names:** Use Docker instead of trying to install binaries via WSL when you encounter path translation errors. Docker avoids the entire path translation layer and is faster to deploy. If binary installation is mandatory, change working directory to a simple path (e.g., C:\Temp) with no spaces before invoking wsl commands. **IMPORTANT: Document installation/build issues immediately as you encounter them — do NOT skip "small" issues.**
+
+> **Update (2026-06-08):** The **Bash tool** (Git Bash) invokes WSL cleanly with `wsl -d Ubuntu -- bash -c "..."` — no CWD-translation error — and is now the preferred path for WSL commands from Claude. PowerShell still works but prints the (harmless) translate warning. Keep Linux paths inside the quoted `bash -c` string. See [[Insights/Claude-Code-Environment]].
+
+---
+
+## ISSUE-012: DeepVariant `--model_type=WGS_PCR` and `PCR_FREE` Not Valid in Current Releases
+
+**Encountered:** 2026-06-08, Session 3
+**Category:** Tool / Variant calling / Model selection
+
+### Issue
+Attempted to run variant calling with `--model_type=WGS_PCR` (for MGI WGS-PCR library model). Docker rejected the flag:
+```
+FATAL Flags parsing error: flag --model_type=WGS_PCR: value should be one of 
+<WGS|WES|PACBIO|ONT_R104|HYBRID_PACBIO_ILLUMINA|MASSEQ|RNASEQ>
+```
+
+The goal was to benchmark three model types: Generic WGS vs MGI WGS-PCR trained vs MGI PCR-free trained. This failed completely — the latter two model types do not exist as valid `model_type` values in current DeepVariant releases (1.6.0, 1.9.0, 1.10.0).
+
+### Cause
+DeepVariant **deprecated the PCR/PCR-free model distinction** in the evolution from 1.6 → 1.9 → 1.10 line. The single `WGS` model now handles both PCR and PCR-free libraries by learning the error signature directly from the data channels (base quality, GQ, etc.) rather than requiring pre-declaration.
+
+The confusion stems from:
+1. Old DeepVariant releases (pre-1.8) had explicit `WGS_PCR` and `PCR_FREE` model types
+2. Current releases (1.9+) unified into a single `WGS` model
+3. MGI-specific **trained models** (custom checkpoints) exist but are accessed via `--customized_model=/path/to/checkpoint`, NOT via `model_type` flag
+4. The MEMORY.md standing rule referenced testing "MGI WGS-PCR trained" and "MGI PCR-free trained" as separate `model_type` options — this is outdated
+
+### Solution
+1. **For the Rizwan sample (PCR-free library):** Use `--model_type=WGS` — the current unified model handles PCR-free input correctly
+2. **If true MGI-trained models are needed later:** Source from MGI's GitHub repository (e.g., `github.com/MGI-tech-bioinformatics/DeepVariant`) and invoke as custom checkpoint via `--customized_model=/path/to/mgi_model_checkpoint` (requires validation on a truth set before production use)
+3. **For this session:** Abandon the three-model benchmark plan. Use `WGS` model on chr22 for validation, then proceed to full 58 GB production run.
+
+### Future Instruction
+> **DeepVariant `model_type` currently supports:** `WGS | WES | PACBIO | ONT_R104 | HYBRID_PACBIO_ILLUMINA | MASSEQ | RNASEQ`. The PCR/PCR-free distinction is **deprecated and removed** — do not attempt `--model_type=WGS_PCR` or `PCR_FREE`. Use `WGS` for all Illumina-like libraries (including MGI DNBSEQ). Only use `--customized_model` if deploying MGI's own trained checkpoints from their GitHub, and validate against a truth set first. Update MEMORY.md to remove the "test three models" rule.
+
+---
+
+---
+
+## ISSUE-013: Local Git Clone Pointed to Wrong Remote
+
+**Encountered:** 2026-06-08, Session 3
+**Category:** GitHub / Git configuration
+
+### Issue
+The local clone at `/home/rayzw/Claude_WGS_Normalization-Stages-1-2-3-4` (named with `Claude_` prefix) had its `origin` remote pointing to `https://github.com/RizwanSiddiqiGIT/WGS_Normalization-Stages-1-2-3-4.git` — the repo *without* the `Claude_` prefix. This caused:
+1. Incorrect repository identification in documentation
+2. Confusion about which repo is canonical for Claude workflows
+3. Risk of pushing to the wrong remote if not verified
+
+### Cause
+The local clone was created or initialized with the wrong remote URL. Git allows any clone name and any remote URL independently — the `Claude_WGS_...` directory name does not constrain which repo it points to.
+
+### Solution
+Updated the local clone's remote URL:
+```bash
+git -C /home/rayzw/Claude_WGS_Normalization-Stages-1-2-3-4 \
+  remote set-url origin \
+  https://github.com/RizwanSiddiqiGIT/Claude_WGS_Normalization-Stages-1-2-3-4.git
+```
+
+Verified:
+```bash
+git -C /home/rayzw/Claude_WGS_Normalization-Stages-1-2-3-4 remote -v
+# Now correctly shows: https://github.com/RizwanSiddiqiGIT/Claude_WGS_Normalization-Stages-1-2-3-4.git
+```
+
+### Future Instruction
+> **Before using a local repo, always verify the remote URL matches the intended GitHub repository.** Use `git -C <path> remote -v` to confirm. The directory name is not authoritative — check the actual remote. Document the canonical repo URL in memory / CLAUDE.md. When setting up new clones, use explicit `git clone <url>` rather than renaming or reassigning remotes later.
 
 ---
 
